@@ -1,0 +1,148 @@
+---
+import { db } from "astro:db";
+import Input from "../components/Input.astro";
+import { Books } from "astro:db";
+
+const bookres = await fetch(`${Astro.url.origin}/api/getBooks.json`);
+const books = await bookres.json();
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="generator" content={Astro.generator} />
+    <title>Astro</title>
+  </head>
+  <body>
+    <h1>Astro Book Tracker</h1>
+    <ul>
+      {
+        books.map((b) => (
+          <li>
+            <a href={`/book/${encodeURIComponent(b.key)}`}>{b.title}</a>
+          </li>
+        ))
+      }
+    </ul>
+
+    <form id="book-form">
+      <label></label>
+      Search for Book
+      <input
+        id="book-search"
+        type="text"
+        class="border-2"
+        placeholder="Enter your search"
+      />
+    </form>
+    <main class="container">
+      <div id="books-wrapper" class="flex flex-wrap gap-6"></div>
+    </main>
+  </body>
+  <script>
+    const booksWrapper = document.querySelector(
+      "#books-wrapper"
+    ) as HTMLDivElement;
+    const bookForm = document.querySelector("#book-form") as HTMLFormElement;
+    const bookInput = document.querySelector(
+      "#book-search"
+    ) as HTMLInputElement;
+
+    // functions
+    const generateBookCard = (book: ProcessedBook) => {
+      return `<div class="p-8 rounded-md border-2 grid gap-1">
+				<h3>${book.title}</h3>
+				<p>${book.author_name}</p>
+				<button data-bookdata="true" data-key="${book.key}" data-title="${book.title}" data-author="${book.author_name[0]}" data-authorid="${book.author_key[0]}" class="py-2 px-6 rounded-md bg-blue-500 text-blue-50" aria-label="Save ${book.title} to database">Save Book</button>
+				</div>`;
+    };
+
+    // broken function
+    const getImageLink = async (isbn_array: string[]) => {
+      let image_link = "";
+
+      const fetchImage = async (isbn: string) => {
+        const image_res = await fetch(
+          `https://covers.openlibrary.org/b/isbn/${isbn}-M.jpg?default=false`
+        );
+
+        if (!image_res.ok) {
+          return false;
+        }
+
+        const image_data = await image_res.json();
+
+        if (image_data.status === 200) {
+          image_link = `https://covers.openlibrary.org/b/isbn/${isbn}-M.jpg?default=false`;
+          return true;
+        }
+        return false;
+      };
+
+      return isbn_array.forEach(async (isbn) => {
+        if (image_link.length > 0) {
+          console.log("not firing?");
+          return;
+        }
+        await fetchImage(isbn);
+      });
+    };
+
+    // event listeners
+    booksWrapper.addEventListener("click", async (e) => {
+      const isBookBtn = (e.target as Element).hasAttribute("data-bookdata");
+
+      if (!isBookBtn || !e.target) return;
+
+      const { key, title, authorid, author } = (e.target as HTMLButtonElement)
+        .dataset;
+
+      const dataToSave = {
+        key,
+        title,
+        authorid,
+        author,
+      };
+
+      const res = await fetch("/api/postBook.json", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(dataToSave),
+      });
+    });
+
+    bookForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const searchVal = bookInput.value;
+
+      try {
+        const res = await fetch(
+          `https://openlibrary.org/search.json?lang=en&title=${encodeURIComponent(searchVal)}`
+        );
+        const data: BookRes = await res.json();
+
+        const processedData = data.docs.map((doc) => {
+          // const image_link = getImageLink(doc.isbn);
+
+          return {
+            key: doc.key,
+            title: doc.title,
+            author_key: doc.author_key,
+            author_name: doc.author_name,
+            // image_link,
+          };
+        });
+        if (processedData.length === 0) {
+          return;
+        }
+        booksWrapper.innerHTML = processedData.map(generateBookCard).join("");
+      } catch (e) {
+        console.error(e);
+      }
+    });
+  </script>
+</html>

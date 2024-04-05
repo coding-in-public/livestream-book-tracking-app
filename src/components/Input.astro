@@ -1,0 +1,80 @@
+---
+
+---
+
+<form id="book-form">
+  <label></label>
+  Search for Book
+  <input
+    id="book-search"
+    type="text"
+    class="border-2"
+    placeholder="Enter your search"
+  />
+</form>
+
+<script>
+  const bookForm = document.querySelector("#book-form") as HTMLFormElement;
+  const bookInput = document.querySelector("#book-search") as HTMLInputElement;
+
+  const generateBookCard = (book: DocsItem) => {
+    return `<p>${book.title}</p>`;
+  };
+
+  const getImageLink = async (isbn_array: string[]) => {
+    let image_link = "";
+
+    const fetchImage = async (isbn: string) => {
+      const image_res = await fetch(
+        `https://covers.openlibrary.org/b/isbn/${isbn}-M.jpg?default=false`
+      );
+
+      if (!image_res.ok) {
+        return false;
+      }
+
+      const image_data = await image_res.json();
+
+      if (image_data.status === 200) {
+        image_link = `https://covers.openlibrary.org/b/isbn/${isbn}-M.jpg?default=false`;
+        return true;
+      }
+      return false;
+    };
+
+    return isbn_array.forEach(async (isbn) => {
+      if (image_link.length > 0) {
+        console.log("not firing?");
+        return;
+      }
+      await fetchImage(isbn);
+    });
+  };
+
+  bookForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const searchVal = bookInput.value;
+
+    try {
+      const res = await fetch(
+        `https://openlibrary.org/search.json?lang=en&title=${encodeURIComponent(searchVal)}`
+      );
+      const data: BookRes = await res.json();
+
+      const processedData = data.docs.map(async (doc) => {
+        // const image_link = getImageLink(doc.isbn);
+
+        return {
+          key: doc.key,
+          title: doc.title,
+          isbn: doc.isbn,
+          author_key: doc.author_key,
+          author_name: doc.author_name,
+          // image_link,
+        };
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  });
+</script>
